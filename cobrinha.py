@@ -2,6 +2,7 @@ import pygame
 import random
 import sys
 import os
+import math
 
 pygame.init()
 
@@ -42,16 +43,17 @@ FPS_NORMAL = 10
 AUMENTO_HARDCORE = 0.5
 
 # Cores
-PRETO     = (15,  15,  15)
-VERDE     = (0,  220, 100)
-VERDE_ESC = (0,  150,  70)
-VERMELHO  = (220, 50,  50)
-BRANCO    = (240, 240, 240)
-CINZA     = (100, 100, 100)
-AMARELO   = (255, 220,  50)
-GRADE_1   = (24,  26,  24)
-GRADE_2   = (20,  22,  20)
-GRADE_LIN = (32,  36,  32)
+PRETO = (15, 15, 15)
+VERDE = (0, 220, 100)
+VERDE_ESC = (0, 150, 70)
+VERMELHO = (220, 50, 50)
+BRANCO = (240, 240, 240)
+CINZA = (100, 100, 100)
+AMARELO = (255, 220, 50)
+ROXO = (170, 90, 230)
+GRADE_1 = (24, 26, 24)
+GRADE_2 = (20, 22, 20)
+GRADE_LIN = (32, 36, 32)
 
 # Modo
 MODO_ATUAL = "normal"
@@ -76,8 +78,8 @@ def _carregar_fonte(tamanho):
         return pygame.font.Font(CAMINHO_FONTE, tamanho)
     return pygame.font.SysFont("monospace", tamanho, bold=True)
 
-fonte_titulo  = _carregar_fonte(32)
-fonte_media   = _carregar_fonte(16)
+fonte_titulo = _carregar_fonte(32)
+fonte_media = _carregar_fonte(16)
 fonte_pequena = _carregar_fonte(12)
 
 # Áudio: carrega os efeitos de sounds/ ; se o mixer ou os arquivos falharem,
@@ -115,26 +117,8 @@ def tocar_musica_modo(modo):
 
     pygame.mixer.music.stop()
 
-    if modo in ("normal", "hardcore", "twin"):
-        caminho = caminho_recurso("sounds/classica.mp3")
-
-    elif modo == "copa":
-        pasta = caminho_recurso("sounds")
-
-        musicas = [
-            os.path.join(pasta, f)
-            for f in os.listdir(pasta)
-            if f.endswith(".mp3")
-        ]
-
-        if not musicas:
-            print("Nenhuma música encontrada na pasta Copa")
-            return
-
-        caminho = random.choice(musicas)
-
-    else:
-        return
+    # Mesma trilha para todos os modos
+    caminho = caminho_recurso("sounds/classica.mp3")
 
     if os.path.isfile(caminho):
         pygame.mixer.music.load(caminho)
@@ -150,43 +134,63 @@ def desenhar_texto_centralizado(texto, fonte, cor, y):
     TELA.blit(render, rect)
     return rect
 
+def desenhar_texto_multicolor(texto, fonte, cores, y):
+    # Desenha o texto centralizado, com cada caractere numa cor da lista
+    # 'cores' (alternando). Retorna o rect da caixa total (p/ hover e seta).
+    largura_total, altura = fonte.size(texto)
+    x = LARGURA // 2 - largura_total // 2
+    esquerda = x
+    for i, ch in enumerate(texto):
+        render = fonte.render(ch, True, cores[i % len(cores)])
+        TELA.blit(render, (x, y - render.get_height() // 2))
+        x += fonte.size(ch)[0]
+    return pygame.Rect(esquerda, y - altura // 2, largura_total, altura)
+
 def desenhar_bordas():
     pygame.draw.rect(TELA, CINZA, (0, 0, LARGURA, ALTURA), ESPESSURA_BORDA)
 
 def desenhar_grade():
     if MODO_ATUAL == "copa":
-        pygame.draw.rect(
-            TELA,
-            (20, 120, 20),
-            (AREA_X1, AREA_Y1, AREA_X2 - AREA_X1, AREA_Y2 - AREA_Y1)
-        )
+        bloco = TAMANHO_BLOCO
+        n_col = (AREA_X2 - AREA_X1) // bloco
+        n_lin = (AREA_Y2 - AREA_Y1) // bloco
+        cx = (AREA_X1 + AREA_X2) // 2
+        cy = (AREA_Y1 + AREA_Y2) // 2
 
-        # Linha central
-        pygame.draw.line(
-            TELA,
-            BRANCO,
-            ((AREA_X1 + AREA_X2) // 2, AREA_Y1),
-            ((AREA_X1 + AREA_X2) // 2, AREA_Y2),
-            3
-        )
+        GRAMA     = (30, 132, 40)
+        GRAMA_ESC = (24, 116, 34)
+        GRID_COPA = (44, 156, 54)
 
-        # Círculo central
-        pygame.draw.circle(
-            TELA,
-            BRANCO,
-            ((AREA_X1 + AREA_X2) // 2, (AREA_Y1 + AREA_Y2) // 2),
-            60,
-            3
-        )
+        # Listras de grama alternadas (cara de campo de verdade)
+        for c in range(n_col):
+            x = AREA_X1 + c * bloco
+            cor = GRAMA if c % 2 == 0 else GRAMA_ESC
+            pygame.draw.rect(TELA, cor, (x, AREA_Y1, bloco, AREA_Y2 - AREA_Y1))
+
+        # Linhas de grid (sutis) para orientação durante o jogo
+        for c in range(n_col + 1):
+            x = AREA_X1 + c * bloco
+            pygame.draw.line(TELA, GRID_COPA, (x, AREA_Y1), (x, AREA_Y2))
+        for l in range(n_lin + 1):
+            y = AREA_Y1 + l * bloco
+            pygame.draw.line(TELA, GRID_COPA, (AREA_X1, y), (AREA_X2, y))
+
+        # Marcações do campo (branco, por cima de tudo)
+        pygame.draw.line(TELA, BRANCO, (cx, AREA_Y1), (cx, AREA_Y2), 3) # linha central
+        pygame.draw.circle(TELA, BRANCO, (cx, cy), 60, 3)  # círculo central
+        pygame.draw.circle(TELA, BRANCO, (cx, cy), 4) # ponto central
+
+        # Áreas dos gols (esquerda e direita)
+        area_h = 5 * bloco
+        area_w = 2 * bloco
+        pygame.draw.rect(TELA, BRANCO, (AREA_X1, cy - area_h // 2, area_w, area_h), 3)
+        pygame.draw.rect(TELA, BRANCO, (AREA_X2 - area_w, cy - area_h // 2, area_w, area_h), 3)
 
         # Borda do campo
         pygame.draw.rect(
-            TELA,
-            BRANCO,
-            (AREA_X1, AREA_Y1, AREA_X2 - AREA_X1, AREA_Y2 - AREA_Y1),
-            3
+            TELA, BRANCO,
+            (AREA_X1, AREA_Y1, AREA_X2 - AREA_X1, AREA_Y2 - AREA_Y1), 3
         )
-
         return
 
     bloco = TAMANHO_BLOCO
@@ -217,27 +221,66 @@ def gerar_comida(cobra: set) -> tuple[int, int]:
         if (x, y) not in cobra:
             return x, y
 
+def _pentagono(cx, cy, raio, rot_graus):
+    pts = []
+    for k in range(5):
+        ang = math.radians(rot_graus + k * 72)
+        pts.append((cx + raio * math.cos(ang), cy + raio * math.sin(ang)))
+    return pts
+
+def desenhar_bola(cx, cy, r):
+    PRETO_BOLA = (28, 28, 28)
+
+    # Sombra sutil no chão (direto na tela, fica embaixo da bola)
+    sombra = pygame.Surface((2 * r, r), pygame.SRCALPHA)
+    pygame.draw.ellipse(sombra, (0, 0, 0, 70), (0, 0, 2 * r, r))
+    TELA.blit(sombra, (cx - r, cy + r - r // 2))
+
+    # Desenha a bola numa superfície própria e depois recorta num círculo,
+    # garantindo que pentágonos/costuras não vazem para fora da borda.
+    lado = 2 * r + 2
+    bola = pygame.Surface((lado, lado), pygame.SRCALPHA)
+    bcx = bcy = lado // 2
+
+    # Corpo branco
+    pygame.draw.circle(bola, (240, 240, 240), (bcx, bcy), r)
+
+    # Pentágono central preto
+    central = _pentagono(bcx, bcy, r * 0.40, -90)
+    pygame.draw.polygon(bola, PRETO_BOLA, central)
+
+    # Pentágonos parciais ao redor
+    for k in range(5):
+        ang = math.radians(-90 + k * 72 + 36)
+        ox = bcx + (r * 0.80) * math.cos(ang)
+        oy = bcy + (r * 0.80) * math.sin(ang)
+        pp = _pentagono(ox, oy, r * 0.26, math.degrees(ang) + 90)
+        pygame.draw.polygon(bola, PRETO_BOLA, pp)
+
+    # Costuras: liga cada vértice do pentágono central à borda
+    for vx, vy in central:
+        ang = math.atan2(vy - bcy, vx - bcx)
+        bx = bcx + r * math.cos(ang)
+        by = bcy + r * math.sin(ang)
+        pygame.draw.line(bola, PRETO_BOLA, (vx, vy), (bx, by), 1)
+
+    # Brilho (3D)
+    pygame.draw.circle(bola, (255, 255, 255), (int(bcx - r * 0.33), int(bcy - r * 0.33)), max(1, r // 5))
+
+    # Máscara circular: zera tudo que estiver fora do círculo da bola
+    mascara = pygame.Surface((lado, lado), pygame.SRCALPHA)
+    pygame.draw.circle(mascara, (255, 255, 255, 255), (bcx, bcy), r)
+    bola.blit(mascara, (0, 0), special_flags=pygame.BLEND_RGBA_MULT)
+
+    # Contorno desenhado por cima (borda limpa, depois do recorte)
+    pygame.draw.circle(bola, PRETO_BOLA, (bcx, bcy), r, 2)
+
+    TELA.blit(bola, (cx - bcx, cy - bcy))
+
 def desenhar_comida(x, y):
     if MODO_ATUAL == "copa":
         b = TAMANHO_BLOCO
-
-        pygame.draw.circle(
-            TELA,
-            BRANCO,
-            (x + b//2, y + b//2),
-            b//2 - 2
-        )
-
-        pontos = [
-            (x+b//2, y+b//3),
-            (x+b//3, y+b//2),
-            (x+b//2-b//8, y+b*2//3),
-            (x+b//2+b//8, y+b*2//3),
-            (x+b*2//3, y+b//2)
-        ]
-
-        pygame.draw.polygon(TELA, PRETO, pontos)
-
+        desenhar_bola(x + b // 2, y + b // 2, b // 2 - 2)
         return
 
     # Maçã (modos normal, hardcore e twin)
@@ -300,7 +343,7 @@ def desenhar_cobra(cobra_lista, direcao_x, direcao_y):
 
     perp_x, perp_y = -dy, dx
     desloc_frente = b // 5
-    desloc_lado   = b // 5
+    desloc_lado = b // 5
     raio_olho = max(2, b // 6)
     raio_pupila = max(1, b // 16)
     for sinal in (1, -1):
@@ -333,13 +376,14 @@ def processar_sair(eventos):
 def menu_inicial() -> str:
     parar_musica()
     # Navegação: setas/WASD + Enter/Espaço, ou mouse (hover + clique).
-    # Cada opção tem uma descrição (2 linhas) que só aparece quando ela
-    # está destacada (por mouse ou teclado).
+    # Cada opção tem uma descrição (2 linhas) e uma cor de destaque própria,
+    # que só aparecem quando ela está destacada (por mouse ou teclado).
+    # A cor "alternar" faz o rótulo alternar amarelo/verde letra a letra.
     opcoes = [
-        ("NORMAL",   "normal",   ALTURA // 2 - 60, ("MODO ORIGINAL", "VELOCIDADE CONSTANTE")),
-        ("HARDCORE", "hardcore", ALTURA // 2 - 10, ("VELOCIDADE AUMENTA", "A CADA FRUTA COLETADA")),
-        ("TWIN",     "twin",     ALTURA // 2 + 40, ("CABEÇA E CAUDA TROCAM", "A CADA FRUTA COLETADA")),
-        ("COPA", "copa", ALTURA // 2 + 90, ("CAMPO DE FUTEBOL", "BOLA E COBRA DO BRASIL")),
+        ("NORMAL", "normal", ALTURA // 2 - 60, ("MODO ORIGINAL", "VELOCIDADE CONSTANTE"), AMARELO),
+        ("HARDCORE", "hardcore", ALTURA // 2 - 10, ("VELOCIDADE AUMENTA", "A CADA FRUTA COLETADA"), VERMELHO),
+        ("TWIN", "twin", ALTURA // 2 + 40, ("CABEÇA E CAUDA TROCAM", "A CADA FRUTA COLETADA"), ROXO),
+        ("COPA", "copa", ALTURA // 2 + 90, ("CAMPO DE FUTEBOL", "BOLA E COBRA DO BRASIL"), "alternar"),
     ]
     selecionado = 0
 
@@ -351,22 +395,30 @@ def menu_inicial() -> str:
         mouse_x, mouse_y = pygame.mouse.get_pos()
 
         rects = []
-        for i, (rotulo, _valor, y, _desc) in enumerate(opcoes):
-            cor = AMARELO if i == selecionado else BRANCO
-            rect = desenhar_texto_centralizado(rotulo, fonte_media, cor, y)
+        for i, (rotulo, _valor, y, _desc, cor_dest) in enumerate(opcoes):
+            if i == selecionado:
+                if cor_dest == "alternar":
+                    rect = desenhar_texto_multicolor(rotulo, fonte_media, (AMARELO, VERDE), y)
+                else:
+                    rect = desenhar_texto_centralizado(rotulo, fonte_media, cor_dest, y)
+            else:
+                rect = desenhar_texto_centralizado(rotulo, fonte_media, BRANCO, y)
             rects.append(rect)
+
             if rect.collidepoint(mouse_x, mouse_y) and i != selecionado:
                 selecionado = i
                 tocar("highlight")
+
             if i == selecionado:
-                seta = fonte_media.render(">", True, AMARELO)
+                cor_seta = AMARELO if cor_dest == "alternar" else cor_dest
+                seta = fonte_media.render(">", True, cor_seta)
                 seta_rect = seta.get_rect(midright=(rect.left - 20, rect.centery))
                 TELA.blit(seta, seta_rect)
 
         # Descrição contextual do modo destacado
         desc = opcoes[selecionado][3]
-        desenhar_texto_centralizado(desc[0], fonte_pequena, CINZA, ALTURA // 2 + 110)
-        desenhar_texto_centralizado(desc[1], fonte_pequena, CINZA, ALTURA // 2 + 135)
+        desenhar_texto_centralizado(desc[0], fonte_pequena, CINZA, ALTURA // 2 + 150)
+        desenhar_texto_centralizado(desc[1], fonte_pequena, CINZA, ALTURA // 2 + 175)
 
         pygame.display.update()
         clock.tick(60)
@@ -405,6 +457,7 @@ def contagem_regressiva():
 
 def menu_pausa() -> str:
     tocar("pause")
+    pygame.mixer.music.pause()   # pausa a música (mantém a posição)
     overlay = pygame.Surface((LARGURA, ALTURA), pygame.SRCALPHA)
     overlay.fill((0, 0, 0, 180))
 
@@ -420,6 +473,7 @@ def menu_pausa() -> str:
 
         if valor == "continuar":
             contagem_regressiva()
+            pygame.mixer.music.unpause() # retoma de onde parou, jogo voltando
             return "continuar"
 
         elif valor == "menu":
@@ -458,7 +512,7 @@ def menu_pausa() -> str:
                     return confirmar(opcoes[selecionado][1])
 
                 elif ev.key == pygame.K_ESCAPE:
-                    return "continuar"
+                    return confirmar("continuar")
 
             if ev.type == pygame.MOUSEBUTTONDOWN and ev.button == 1:
                 for i, rect in enumerate(rects):
@@ -472,11 +526,11 @@ def tela_game_over(pontuacao: int, modo: str) -> str:
     tocar("game_over")
     while True:
         TELA.fill(PRETO)
-        desenhar_texto_centralizado("GAME OVER",          fonte_titulo,  VERMELHO, ALTURA // 2 - 90)
-        desenhar_texto_centralizado(f"SCORE: {pontuacao}",fonte_media,   BRANCO,   ALTURA // 2 - 10)
-        desenhar_texto_centralizado(f"MODO: {modo.upper()}",fonte_pequena,CINZA,   ALTURA // 2 + 35)
-        desenhar_texto_centralizado("ENTER = REINICIAR",  fonte_pequena, BRANCO,   ALTURA // 2 + 90)
-        desenhar_texto_centralizado("ESC = MENU",         fonte_pequena, BRANCO,   ALTURA // 2 + 130)
+        desenhar_texto_centralizado("GAME OVER", fonte_titulo, VERMELHO, ALTURA // 2 - 90)
+        desenhar_texto_centralizado(f"SCORE: {pontuacao}",fonte_media, BRANCO, ALTURA // 2 - 10)
+        desenhar_texto_centralizado(f"MODO: {modo.upper()}",fonte_pequena,CINZA, ALTURA // 2 + 35)
+        desenhar_texto_centralizado("ENTER = REINICIAR", fonte_pequena, BRANCO, ALTURA // 2 + 90)
+        desenhar_texto_centralizado("ESC = MENU", fonte_pequena, BRANCO, ALTURA // 2 + 130)
         pygame.display.update()
         for ev in pygame.event.get():
             processar_sair([ev])
@@ -490,9 +544,9 @@ def tela_game_over(pontuacao: int, modo: str) -> str:
 def jogo(modo: str) -> str:
     global MODO_ATUAL
     MODO_ATUAL = modo
-    tocar_musica_modo(modo)  # 🎵 começa música do modo
+    tocar_musica_modo(modo) # começa música do modo
     cobra_lista = [(INICIO_X, INICIO_Y)]
-    cobra_set   = set(cobra_lista)
+    cobra_set = set(cobra_lista)
 
     direcao_x = TAMANHO_BLOCO
     direcao_y = 0
