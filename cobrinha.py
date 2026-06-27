@@ -119,7 +119,7 @@ def tocar_musica_modo(modo):
         caminho = caminho_recurso("sounds/classica.mp3")
 
     elif modo == "copa":
-        pasta = caminho_recurso("sounds/copa")
+        pasta = caminho_recurso("sounds")
 
         musicas = [
             os.path.join(pasta, f)
